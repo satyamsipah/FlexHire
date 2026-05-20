@@ -7,12 +7,16 @@ import { requireRole } from '../middleware/requireRole.js';
 import { ROLES } from '../constants/roles.js';
 import { MilestoneStateMachine } from '../services/escrow/MilestoneStateMachine.js';
 import { createOrder } from '../services/payments/razorpay.js';
+import { emitToProject } from '../sockets/chatSocket.js';
+import {
+  emailMilestoneSubmitted,
+  emailMilestoneApproved,
+  emailMilestoneDisputed,
+  emailMilestoneRefunded,
+} from '../services/notifications/email.js';
 
 const router = Router();
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
-
-// Find the project containing a given milestone _id.
 async function findProjectByMilestone(milestoneId) {
   return Project.findOne({ 'milestones._id': milestoneId });
 }
@@ -35,7 +39,6 @@ router.post('/project/:projectId', requireAuth, requireRole(ROLES.CLIENT), async
 
   project.milestones.push({ title, description, amount });
   await project.save();
-
   res.status(201).json({ project });
 });
 
@@ -53,19 +56,17 @@ router.post('/:milestoneId/fund', requireAuth, requireRole(ROLES.CLIENT), async 
   if (milestone.state !== 'CREATED')
     return res.status(409).json({ error: `Milestone is already in state "${milestone.state}"` });
 
-  // Idempotency: don't create a second order if one already exists
   if (milestone.razorpayOrderId)
     return res.status(409).json({ error: 'A Razorpay order already exists for this milestone' });
 
   const order = await createOrder(milestone.amount * 100, milestone._id, project._id);
-
   milestone.razorpayOrderId = order.id;
   await project.save();
 
   res.json({
     orderId:       order.id,
     razorpayKeyId: process.env.RAZORPAY_KEY_ID,
-    amount:        order.amount,   // in paise
+    amount:        order.amount,
     currency:      order.currency,
     milestoneId:   milestone._id,
   });
@@ -81,6 +82,11 @@ router.post('/:milestoneId/start', requireAuth, requireRole(ROLES.FREELANCER), a
     return res.status(403).json({ error: 'You are not the assigned freelancer' });
 
   const milestone = await MilestoneStateMachine.start(req.params.milestoneId, req.userId);
+
+  emitToProject(project._id, 'milestone:started', {
+    projectId: project._id, milestoneId: req.params.milestoneId, milestone,
+  });
+
   res.json({ milestone });
 });
 
@@ -95,6 +101,22 @@ router.post('/:milestoneId/submit', requireAuth, requireRole(ROLES.FREELANCER), 
 
   const { submissionNote } = req.body;
   const milestone = await MilestoneStateMachine.submit(req.params.milestoneId, req.userId, submissionNote);
+
+  emitToProject(project._id, 'milestone:submitted', {
+    projectId: project._id, milestoneId: req.params.milestoneId, milestone,
+  });
+
+  // Fire-and-forget — email failure must not affect the response
+  User.findById(project.clientId).select('email').lean()
+    .then(client => emailMilestoneSubmitted({
+      clientEmail:    client.email,
+      projectTitle:   project.title,
+      milestoneTitle: milestone.title,
+      amount:         milestone.amount,
+      projectId:      project._id,
+    }))
+    .catch(() => {});
+
   res.json({ milestone });
 });
 
@@ -108,6 +130,21 @@ router.post('/:milestoneId/approve', requireAuth, requireRole(ROLES.CLIENT), asy
     return res.status(403).json({ error: 'You do not own this project' });
 
   const milestone = await MilestoneStateMachine.approve(req.params.milestoneId, req.userId);
+
+  emitToProject(project._id, 'milestone:approved', {
+    projectId: project._id, milestoneId: req.params.milestoneId, milestone,
+  });
+
+  User.findById(project.freelancerId).select('email').lean()
+    .then(freelancer => emailMilestoneApproved({
+      freelancerEmail: freelancer.email,
+      projectTitle:    project.title,
+      milestoneTitle:  milestone.title,
+      amount:          milestone.amount,
+      projectId:       project._id,
+    }))
+    .catch(() => {});
+
   res.json({ milestone });
 });
 
@@ -126,6 +163,28 @@ router.post('/:milestoneId/dispute', requireAuth, requireRole(ROLES.CLIENT, ROLE
     return res.status(403).json({ error: 'You are not a party to this project' });
 
   const result = await MilestoneStateMachine.dispute(req.params.milestoneId, req.userId, reason);
+
+  emitToProject(project._id, 'milestone:disputed', {
+    projectId: project._id, milestoneId: req.params.milestoneId, milestone: result.milestone,
+  });
+
+  // Notify both parties + admin (fire-and-forget)
+  Promise.all([
+    User.findById(project.clientId).select('email').lean(),
+    User.findById(project.freelancerId).select('email').lean(),
+    User.findOne({ role: ROLES.ADMIN }).select('email').lean(),
+  ]).then(([client, freelancer, admin]) => {
+    const milestone = project.milestones.id(req.params.milestoneId);
+    emailMilestoneDisputed({
+      clientEmail:     client?.email,
+      freelancerEmail: freelancer?.email,
+      adminEmail:      admin?.email,
+      projectTitle:    project.title,
+      milestoneTitle:  milestone?.title,
+      projectId:       project._id,
+    });
+  }).catch(() => {});
+
   res.json(result);
 });
 
@@ -139,13 +198,36 @@ router.post('/:milestoneId/cancel', requireAuth, requireRole(ROLES.CLIENT), asyn
     return res.status(403).json({ error: 'You do not own this project' });
 
   const milestone = await MilestoneStateMachine.cancel(req.params.milestoneId, req.userId);
+
+  emitToProject(project._id, 'milestone:cancelled', {
+    projectId: project._id, milestoneId: req.params.milestoneId, milestone,
+  });
+
   res.json({ milestone });
 });
 
-// ─── Auto-refund (FUNDED → AUTO_REFUNDED) ─────────────────────────────────────
+// ─── Auto-refund (FUNDED → AUTO_REFUNDED) ────────────────────────────────────
 
 router.post('/:milestoneId/auto-refund', requireAuth, requireRole(ROLES.ADMIN), async (req, res) => {
+  const project = await findProjectByMilestone(req.params.milestoneId);
   const milestone = await MilestoneStateMachine.autoRefund(req.params.milestoneId, req.userId);
+
+  if (project) {
+    emitToProject(project._id, 'milestone:auto_refunded', {
+      projectId: project._id, milestoneId: req.params.milestoneId, milestone,
+    });
+
+    User.findById(project.clientId).select('email').lean()
+      .then(client => emailMilestoneRefunded({
+        clientEmail:    client.email,
+        projectTitle:   project.title,
+        milestoneTitle: milestone.title,
+        amount:         milestone.amount,
+        projectId:      project._id,
+      }))
+      .catch(() => {});
+  }
+
   res.json({ milestone });
 });
 

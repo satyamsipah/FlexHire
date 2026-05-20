@@ -109,16 +109,22 @@ FlexHire/
 │       ├── constants/roles.js     ← ROLES, PROJECT_STATES, MILESTONE_STATES
 │       ├── middleware/requireAuth.js, requireRole.js
 │       ├── models/User.js, Project.js, Message.js, Dispute.js, AuditLog.js
-│       ├── routes/auth.js, projects.js, milestones.js, disputes.js, webhooks.js
+│       ├── routes/auth.js, projects.js, milestones.js, disputes.js, webhooks.js,
+│       │         uploads.js, reviews.js
+│       ├── sockets/chatSocket.js          ← /chat namespace + emitToProject()
 │       └── services/escrow/MilestoneStateMachine.js
 │                payments/razorpay.js
+│                notifications/email.js    ← Nodemailer triggers
+│                uploads/cloudinary.js     ← multer + CloudinaryStorage
 └── frontend/
     ├── vite.config.js     (Tailwind v4 plugin + /api proxy → :5001)
     └── src/
         ├── lib/api.js     (axios, withCredentials:true)
         ├── store/authStore.js
         ├── components/ProtectedRoute.jsx
-        └── pages/Login, Signup, ClientDashboard, FreelancerDashboard, AdminDashboard
+        ├── hooks/useProjectSocket.js     ← Socket.io hook (connect, join, send)
+        └── pages/Login, Signup, ClientDashboard, FreelancerDashboard,
+                   AdminDashboard, ProjectChat
 ```
 
 ---
@@ -129,25 +135,22 @@ FlexHire/
 |------|--------|-------------|
 | 5 | ✅ Done | Backend scaffold, all 6 schemas, JWT auth with RBAC, project routes, React frontend with role-aware routing |
 | 6 | ✅ Done | MilestoneStateMachine (9 transitions, MongoDB transactions, AuditLog), Razorpay Orders + HMAC webhook, mocked Payouts, dispute resolution, Fund/Approve/Dispute/Start/Submit buttons in frontend |
-| 7 | ⬜ Next | Socket.io chat with project-room auth, Cloudinary file uploads, Nodemailer notifications, Upstash Redis as Socket.io adapter |
-| 8 | ⬜ | Deployment (Render + Vercel), end-to-end testing |
+| 7 | ✅ Done | Socket.io /chat namespace with JWT cookie auth + Redis adapter, real-time chat with file uploads (Cloudinary), Nodemailer email triggers on every state transition, dispute UI + ratings/reviews |
+| 8 | ⬜ Next | Deployment (Render + Vercel), README, demo video, real Razorpay Payouts |
 
 ---
 
-## Week 7 Entry Point
+## Week 8 Entry Point
 
-**Start here**: implement Socket.io chat in `backend/src/socket/`.
+**Start here**: deploy to Render (backend) + Vercel (frontend).
 
-1. Install `socket.io` (backend) and `socket.io-client` (frontend) — already in package.json.
-2. Auth: read the `token` httpOnly cookie in the `io.use()` middleware via
-   `socket.handshake.headers.cookie` + the `cookie` package. Verify the JWT and attach
-   `socket.userId` + `socket.userRole`.
-3. Room pattern: `socket.join(`project:${projectId}`)` — verify the user is the client or
-   freelancer of that project before joining.
-4. Events: `chat:send` (client→server) → persist to `Message` collection → emit `chat:message`
-   (server→room).
-5. Upstash Redis adapter: `@socket.io/redis-adapter` with `@upstash/redis` (REST adapter).
-   Env vars `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` are already in `.env`.
+1. Backend on Render: set all env vars from `.env.example`. Build cmd: `npm install`. Start: `npm start`.
+2. Frontend on Vercel: set `VITE_API_URL` if needed. Vite build outputs to `dist/`.
+3. Update CORS `CLIENT_URL` in Render env to the Vercel deployment URL.
+4. Replace `mockPayout()` in `backend/src/services/payments/razorpay.js` with real
+   `razorpay.payouts.create()` — requires Razorpay X account + freelancer `razorpayFundAccountId`.
+5. Point Razorpay webhook URL to the Render deployment (no more ngrok).
+6. Upstash REDIS_URL must use `rediss://` (TLS) — Render supports it natively.
 
 ---
 
@@ -179,7 +182,16 @@ FlexHire/
    `{ $or: [{ state: 'POSTED' }, { freelancerId: req.userId }] }`
    so freelancers can navigate back to their in-progress projects.
 
-8. **Razorpay Payouts are mocked** — `mockPayout()` in
+8. **Socket.io namespace is `/chat`** — connect with `io('/chat', { withCredentials: true })`.
+   The default namespace `/` is unauthenticated; only `/chat` has `socketAuth` middleware.
+   `emitToProject(projectId, event, data)` in `sockets/chatSocket.js` is the single function
+   route handlers call to push milestone events into a project room.
+
+9. **Email failures are silent** — all `emailXxx()` functions are wrapped in try/catch and log
+   `console.warn` on failure. They must NEVER be awaited in a way that could reject the HTTP
+   response. Pattern: `Promise.resolve(emailFn(...)).catch(() => {})` or fire `.then(...).catch(() => {})`.
+
+10. **Razorpay Payouts are mocked** — `mockPayout()` in
    `backend/src/services/payments/razorpay.js` increments `freelancer.walletBalance` and
    returns a fake `payout_mock_<timestamp>` ID instead of calling the real Payouts API.
    Replace with `razorpay.payouts.create()` in Week 8 (requires Razorpay X account +

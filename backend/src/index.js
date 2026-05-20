@@ -4,27 +4,37 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { connectDB } from './config/db.js';
+import { createRedisClients } from './config/redis.js';
+import { initChatSocket } from './sockets/chatSocket.js';
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projects.js';
 import milestoneRoutes from './routes/milestones.js';
 import disputeRoutes from './routes/disputes.js';
 import webhookRoutes from './routes/webhooks.js';
+import uploadRoutes from './routes/uploads.js';
+import reviewRoutes from './routes/reviews.js';
 
 const app = express();
 const httpServer = createServer(app);
-const PORT = process.env.PORT || 5001;
+const PORT       = process.env.PORT       || 5001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 export const io = new Server(httpServer, {
   cors: { origin: CLIENT_URL, credentials: true },
 });
 
-// Week 7: authenticate sockets via httpOnly cookie using cookie-parser on the namespace
-io.on('connection', (socket) => {
-  console.log('socket connected:', socket.id);
-  socket.on('disconnect', () => console.log('socket disconnected:', socket.id));
-});
+// Wire Redis adapter for horizontal scalability.
+// Gracefully skipped if REDIS_URL is not configured.
+const redisClients = createRedisClients();
+if (redisClients) {
+  io.adapter(createAdapter(redisClients.pubClient, redisClients.subClient));
+  console.log('[redis] Socket.io Redis adapter active');
+}
+
+// Mount authenticated /chat namespace
+initChatSocket(io);
 
 // ─── Webhook BEFORE express.json() ───────────────────────────────────────────
 // Razorpay HMAC signature verification needs the raw request body buffer.
@@ -41,10 +51,10 @@ app.use('/api/auth',       authRoutes);
 app.use('/api/projects',   projectRoutes);
 app.use('/api/milestones', milestoneRoutes);
 app.use('/api/disputes',   disputeRoutes);
+app.use('/api/uploads',    uploadRoutes);
+app.use('/api/reviews',    reviewRoutes);
 
 // ─── Global error handler ─────────────────────────────────────────────────────
-// err.status is set by InvalidTransitionError (409) and our 404 helpers.
-// Falls back to 500 for unexpected errors.
 app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(err.status ?? 500).json({ error: err.message || 'Internal server error' });

@@ -5,6 +5,7 @@ import Signup from './pages/Signup.jsx';
 import ClientDashboard from './pages/ClientDashboard.jsx';
 import FreelancerDashboard from './pages/FreelancerDashboard.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
+import ProjectChat from './pages/ProjectChat.jsx';
 
 export default function App() {
   return (
@@ -26,6 +27,12 @@ export default function App() {
         {/* Admin-only routes */}
         <Route element={<ProtectedRoute allowedRole="admin" />}>
           <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
+
+        {/* Chat — any authenticated user (client, freelancer, admin) */}
+        {/* Project membership enforced by Socket.io auth on join_project */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/project/:projectId/chat" element={<ProjectChat />} />
         </Route>
 
         {/* Catch-all → login */}

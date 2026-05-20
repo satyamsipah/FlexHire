@@ -159,7 +159,7 @@ export class MilestoneStateMachine {
       milestone.state = 'DISPUTED';
 
       const [disputeDoc] = await Dispute.create(
-        [{ milestoneId, raisedBy, reason }],
+        [{ milestoneId, projectId: project._id, raisedBy, reason }],
         { session }
       );
 

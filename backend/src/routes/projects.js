@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import Project from '../models/Project.js';
+import Message from '../models/Message.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { ROLES } from '../constants/roles.js';
@@ -62,6 +63,25 @@ router.post('/:id/accept', requireAuth, requireRole(ROLES.FREELANCER), async (re
   await project.save();
 
   res.json({ project });
+});
+
+// GET /api/projects/:id/messages — message history for chat page (client, freelancer, admin)
+router.get('/:id/messages', requireAuth, async (req, res) => {
+  const project = await Project.findById(req.params.id).select('clientId freelancerId');
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  const isClient     = project.clientId.toString() === req.userId;
+  const isFreelancer = project.freelancerId?.toString() === req.userId;
+  const isAdmin      = req.userRole === ROLES.ADMIN;
+  if (!isClient && !isFreelancer && !isAdmin)
+    return res.status(403).json({ error: 'Access denied' });
+
+  const messages = await Message
+    .find({ projectId: req.params.id })
+    .sort({ createdAt: 1 })
+    .populate('senderId', 'name role');
+
+  res.json({ messages });
 });
 
 export default router;

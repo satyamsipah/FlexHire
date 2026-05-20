@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../lib/api.js';
 import useAuthStore from '../store/authStore.js';
 
-// Project-level state badge colours
 const PROJECT_STATE_STYLES = {
   POSTED:      'bg-yellow-100 text-yellow-800',
   ACCEPTED:    'bg-blue-100 text-blue-800',
@@ -12,21 +11,37 @@ const PROJECT_STATE_STYLES = {
   CANCELLED:   'bg-red-100 text-red-800',
 };
 
-// Milestone-level state badge colours (8 states + AUTO_REFUNDED)
 const M_STATE_STYLES = {
-  CREATED:      'bg-gray-100 text-gray-700',
-  FUNDED:       'bg-blue-100 text-blue-700',
-  IN_PROGRESS:  'bg-yellow-100 text-yellow-800',
-  SUBMITTED:    'bg-orange-100 text-orange-800',
-  APPROVED:     'bg-green-100 text-green-800',
-  DISPUTED:     'bg-red-100 text-red-800',
-  REFUNDED:     'bg-rose-200 text-rose-900',
-  AUTO_REFUNDED:'bg-purple-100 text-purple-800',
-  CANCELLED:    'bg-slate-100 text-slate-600',
+  CREATED:       'bg-gray-100 text-gray-700',
+  FUNDED:        'bg-blue-100 text-blue-700',
+  IN_PROGRESS:   'bg-yellow-100 text-yellow-800',
+  SUBMITTED:     'bg-orange-100 text-orange-800',
+  APPROVED:      'bg-green-100 text-green-800',
+  DISPUTED:      'bg-red-100 text-red-800',
+  REFUNDED:      'bg-rose-200 text-rose-900',
+  AUTO_REFUNDED: 'bg-purple-100 text-purple-800',
+  CANCELLED:     'bg-slate-100 text-slate-600',
 };
 
 const EMPTY_FORM      = { title: '', description: '', totalBudget: '' };
 const EMPTY_MILESTONE = { title: '', description: '', amount: '' };
+
+function StarRating({ value, onChange }) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
+          className={`text-xl ${n <= value ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-400`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function ClientDashboard() {
   const navigate = useNavigate();
@@ -37,9 +52,10 @@ export default function ClientDashboard() {
   const [milestones, setMilestones] = useState([]);
   const [formError,  setFormError]  = useState('');
   const [creating,   setCreating]   = useState(false);
-  // milestoneId being acted on (for loading state per button)
   const [acting,     setActing]     = useState(null);
   const [actionErr,  setActionErr]  = useState('');
+  // { [projectId]: { rating, comment, submitting, submitted } }
+  const [reviews,    setReviews]    = useState({});
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -50,15 +66,29 @@ export default function ClientDashboard() {
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
+  // Check which completed projects the client has already reviewed
+  useEffect(() => {
+    const completed = projects.filter(p => p.state === 'COMPLETED');
+    completed.forEach(p => {
+      api.get(`/api/reviews/${p._id}/mine`)
+        .then(({ data }) => {
+          if (data.review) {
+            setReviews(r => ({ ...r, [p._id]: { ...r[p._id], submitted: true } }));
+          }
+        })
+        .catch(() => {});
+    });
+  }, [projects]);
+
   async function handleLogout() {
     await api.post('/api/auth/logout');
     logout();
     navigate('/login', { replace: true });
   }
 
-  // ── project creation ────────────────────────────────────────────────────────
-  function addMilestone()          { setMilestones([...milestones, { ...EMPTY_MILESTONE }]); }
-  function removeMilestone(idx)    { setMilestones(milestones.filter((_, i) => i !== idx)); }
+  // ── Project creation ─────────────────────────────────────────────────────────
+  function addMilestone()       { setMilestones([...milestones, { ...EMPTY_MILESTONE }]); }
+  function removeMilestone(idx) { setMilestones(milestones.filter((_, i) => i !== idx)); }
   function updateMilestone(idx, field, value) {
     setMilestones(milestones.map((m, i) => i === idx ? { ...m, [field]: value } : m));
   }
@@ -83,25 +113,20 @@ export default function ClientDashboard() {
     }
   }
 
-  // ── milestone actions ───────────────────────────────────────────────────────
-
-  // Opens Razorpay Checkout after getting an order from the backend
+  // ── Milestone actions ────────────────────────────────────────────────────────
   async function handleFund(milestoneId) {
     setActionErr('');
     setActing(milestoneId);
     try {
       const { data } = await api.post(`/api/milestones/${milestoneId}/fund`);
-
-      // window.Razorpay is loaded via <script> in index.html
       const rzp = new window.Razorpay({
-        key:      data.razorpayKeyId,
-        order_id: data.orderId,
-        amount:   data.amount,
-        currency: data.currency,
-        name:     'FlexHire',
+        key:         data.razorpayKeyId,
+        order_id:    data.orderId,
+        amount:      data.amount,
+        currency:    data.currency,
+        name:        'FlexHire',
         description: 'Milestone funding',
         handler: () => {
-          // Payment submitted — milestone moves to FUNDED once webhook fires
           alert('Payment submitted! The milestone will be marked funded in a few seconds.');
           fetchProjects();
         },
@@ -128,8 +153,8 @@ export default function ClientDashboard() {
   }
 
   async function handleDispute(milestoneId) {
-    const reason = window.prompt('Describe the issue:');
-    if (!reason) return;
+    const reason = window.prompt('Describe the issue (min 10 characters):');
+    if (!reason?.trim()) return;
     setActionErr('');
     setActing(milestoneId);
     try {
@@ -142,7 +167,21 @@ export default function ClientDashboard() {
     }
   }
 
-  // ── render ──────────────────────────────────────────────────────────────────
+  // ── Reviews ──────────────────────────────────────────────────────────────────
+  async function handleReview(projectId) {
+    const rev = reviews[projectId] ?? {};
+    if (!rev.rating) return;
+    setReviews(r => ({ ...r, [projectId]: { ...r[projectId], submitting: true } }));
+    try {
+      await api.post(`/api/reviews/${projectId}`, { rating: rev.rating, comment: rev.comment ?? '' });
+      setReviews(r => ({ ...r, [projectId]: { ...r[projectId], submitting: false, submitted: true } }));
+    } catch (err) {
+      setActionErr(err.response?.data?.error ?? 'Review failed');
+      setReviews(r => ({ ...r, [projectId]: { ...r[projectId], submitting: false } }));
+    }
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="flex items-center justify-between border-b bg-white px-6 py-4">
@@ -239,7 +278,7 @@ export default function ClientDashboard() {
                   <div key={p._id} className="rounded-xl border bg-white p-4 shadow-sm">
                     {/* Project header */}
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-900">{p.title}</h3>
                         <p className="mt-0.5 text-sm text-gray-500">{p.description}</p>
                         <div className="mt-1 flex gap-4 text-xs text-gray-400">
@@ -247,9 +286,19 @@ export default function ClientDashboard() {
                           <span>{p.milestones.length} milestone{p.milestones.length !== 1 ? 's' : ''}</span>
                         </div>
                       </div>
-                      <span className={`ml-4 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${PROJECT_STATE_STYLES[p.state] ?? ''}`}>
-                        {p.state}
-                      </span>
+                      <div className="ml-4 flex shrink-0 items-center gap-2">
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${PROJECT_STATE_STYLES[p.state] ?? ''}`}>
+                          {p.state}
+                        </span>
+                        {p.state !== 'POSTED' && (
+                          <Link
+                            to={`/project/${p._id}/chat`}
+                            className="rounded-lg bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                          >
+                            Chat
+                          </Link>
+                        )}
+                      </div>
                     </div>
 
                     {/* Milestone rows */}
@@ -265,8 +314,7 @@ export default function ClientDashboard() {
                               <span className="shrink-0 text-xs text-gray-400">₹{m.amount.toLocaleString()}</span>
                             </div>
 
-                            {/* Action buttons — only shown for valid transitions */}
-                            <div className="ml-3 flex shrink-0 gap-2">
+                            <div className="ml-3 flex shrink-0 items-center gap-2">
                               {m.state === 'CREATED' && (
                                 <button
                                   onClick={() => handleFund(m._id)}
@@ -289,18 +337,55 @@ export default function ClientDashboard() {
                                     className="rounded bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50">
                                     Dispute
                                   </button>
+                                  {m.submissionNote && (
+                                    <span className="max-w-xs truncate text-xs italic text-gray-500" title={m.submissionNote}>
+                                      "{m.submissionNote}"
+                                    </span>
+                                  )}
                                 </>
                               )}
-                              {m.state === 'SUBMITTED' && m.submissionNote && (
-                                <span className="max-w-xs truncate text-xs italic text-gray-500" title={m.submissionNote}>
-                                  "{m.submissionNote}"
-                                </span>
+                              {m.state === 'DISPUTED' && (
+                                <span className="text-xs text-red-600 italic">Awaiting admin resolution</span>
                               )}
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
+
+                    {/* Review prompt for completed projects */}
+                    {p.state === 'COMPLETED' && (() => {
+                      const rev = reviews[p._id] ?? {};
+                      if (rev.submitted) {
+                        return (
+                          <p className="mt-3 border-t pt-3 text-xs text-emerald-600">
+                            ✓ You've rated this project
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="mt-3 border-t pt-3 space-y-2">
+                          <p className="text-xs font-medium text-gray-700">Rate your experience with the freelancer:</p>
+                          <StarRating
+                            value={rev.rating ?? 0}
+                            onChange={n => setReviews(r => ({ ...r, [p._id]: { ...r[p._id], rating: n } }))}
+                          />
+                          <textarea
+                            rows={2}
+                            placeholder="Optional comment…"
+                            className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-400"
+                            value={rev.comment ?? ''}
+                            onChange={e => setReviews(r => ({ ...r, [p._id]: { ...r[p._id], comment: e.target.value } }))}
+                          />
+                          <button
+                            onClick={() => handleReview(p._id)}
+                            disabled={!rev.rating || rev.submitting}
+                            className="rounded bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                            {rev.submitting ? 'Submitting…' : 'Submit Review'}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
