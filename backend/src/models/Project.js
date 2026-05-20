@@ -16,6 +16,9 @@ const MilestoneSchema = new mongoose.Schema(
     razorpayPaymentId: { type: String, default: null },
     razorpayPayoutId:  { type: String, default: null },
 
+    // Freelancer's note when submitting work for review
+    submissionNote: { type: String, default: null },
+
     submittedAt: { type: Date, default: null },
     approvedAt:  { type: Date, default: null },
     refundedAt:  { type: Date, default: null },

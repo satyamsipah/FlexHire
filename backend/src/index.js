@@ -7,13 +7,15 @@ import cors from 'cors';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projects.js';
+import milestoneRoutes from './routes/milestones.js';
+import disputeRoutes from './routes/disputes.js';
+import webhookRoutes from './routes/webhooks.js';
 
 const app = express();
-const httpServer = createServer(app); // wrap Express so Socket.io can share the port
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 5001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
-// Socket.io — same CORS origin as Express so httpOnly cookies are forwarded
 export const io = new Server(httpServer, {
   cors: { origin: CLIENT_URL, credentials: true },
 });
@@ -24,21 +26,28 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => console.log('socket disconnected:', socket.id));
 });
 
-// IMPORTANT (Week 6): register any Razorpay webhook route BEFORE express.json().
-// Razorpay HMAC signature verification requires the raw request body buffer.
-// Once express.json() parses it, the raw buffer is gone and signature check will fail.
+// ─── Webhook BEFORE express.json() ───────────────────────────────────────────
+// Razorpay HMAC signature verification needs the raw request body buffer.
+// express.json() destroys it — so the webhook route uses express.raw() internally
+// and must be registered first.
+app.use('/api/webhooks', webhookRoutes);
 
+// ─── All other middleware ─────────────────────────────────────────────────────
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-app.use('/api/auth',     authRoutes);
-app.use('/api/projects', projectRoutes);
+app.use('/api/auth',       authRoutes);
+app.use('/api/projects',   projectRoutes);
+app.use('/api/milestones', milestoneRoutes);
+app.use('/api/disputes',   disputeRoutes);
 
-// Global error handler — catches any unhandled async errors thrown in route handlers
+// ─── Global error handler ─────────────────────────────────────────────────────
+// err.status is set by InvalidTransitionError (409) and our 404 helpers.
+// Falls back to 500 for unexpected errors.
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: err.message || 'Internal server error' });
+  res.status(err.status ?? 500).json({ error: err.message || 'Internal server error' });
 });
 
 connectDB().then(() => {

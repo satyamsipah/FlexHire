@@ -34,9 +34,7 @@ router.get('/', requireAuth, async (req, res) => {
   if (req.userRole === ROLES.CLIENT) {
     filter = { clientId: req.userId };
   } else if (req.userRole === ROLES.FREELANCER) {
-    // Week 6 update: change to $or: [{state:'POSTED'}, {freelancerId:req.userId}]
-    // so freelancers can also navigate back to their accepted projects
-    filter = { state: 'POSTED' };
+    filter = { $or: [{ state: 'POSTED' }, { freelancerId: req.userId }] };
   }
   // ROLES.ADMIN: filter stays {} — sees all projects
 

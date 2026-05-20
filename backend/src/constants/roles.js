@@ -10,9 +10,7 @@ export const PROJECT_STATES = [
   'POSTED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED',
 ];
 
-// NOTE: Add 'AUTO_REFUNDED' here at the start of Week 6 — it is the terminal
-// state written by the Razorpay webhook when an order expires unfunded.
 export const MILESTONE_STATES = [
   'CREATED', 'FUNDED', 'IN_PROGRESS', 'SUBMITTED',
-  'APPROVED', 'DISPUTED', 'REFUNDED', 'CANCELLED',
+  'APPROVED', 'DISPUTED', 'REFUNDED', 'AUTO_REFUNDED', 'CANCELLED',
 ];
