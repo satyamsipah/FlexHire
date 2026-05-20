@@ -196,6 +196,14 @@ export default function ProjectChat() {
         </div>
       </header>
 
+      {/* Disconnect banner */}
+      {!connected && (
+        <div className="flex items-center justify-center gap-2 bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-800">
+          <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+          Reconnecting… Messages will resume when the connection is restored.
+        </div>
+      )}
+
       {/* Message area */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
         {error && <p className="text-center text-sm text-red-500">{error}</p>}

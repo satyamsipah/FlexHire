@@ -136,13 +136,23 @@ FlexHire/
 | 5 | ✅ Done | Backend scaffold, all 6 schemas, JWT auth with RBAC, project routes, React frontend with role-aware routing |
 | 6 | ✅ Done | MilestoneStateMachine (9 transitions, MongoDB transactions, AuditLog), Razorpay Orders + HMAC webhook, mocked Payouts, dispute resolution, Fund/Approve/Dispute/Start/Submit buttons in frontend |
 | 7 | ✅ Done | Socket.io /chat namespace with JWT cookie auth + Redis adapter, real-time chat with file uploads (Cloudinary), Nodemailer email triggers on every state transition, dispute UI + ratings/reviews |
-| 8 | ⬜ Next | Deployment (Render + Vercel), README, demo video, real Razorpay Payouts |
+| 8 | ✅ Done | UI polish (skeletons, toasts, ConfirmModal, formatINR, timeAgo, 404, ErrorBoundary, disconnect banner), README.md, CLAUDE.md update. Deploy to Render + Vercel (see README). **PROJECT COMPLETE.** |
 
 ---
 
-## Week 8 Entry Point
+## Deployment
 
-**Start here**: deploy to Render (backend) + Vercel (frontend).
+See README.md for full instructions. Quick reference:
+- Backend → Render: root `backend`, start `node src/index.js`, set all env vars
+- Frontend → Vercel: root `frontend`, set `VITE_API_URL` + `VITE_RAZORPAY_KEY_ID`
+- After both are live: update `FRONTEND_URL` in Render + Razorpay webhook URL
+
+**Razorpay Payouts are mocked** — `mockPayout()` in
+`backend/src/services/payments/razorpay.js` increments `freelancer.walletBalance` and
+returns a fake `payout_mock_<timestamp>` ID. Replace with `razorpay.payouts.create()`
+when Razorpay X account is available.
+
+## Former Week 8 Entry Point (now complete)
 
 1. Backend on Render: set all env vars from `.env.example`. Build cmd: `npm install`. Start: `npm start`.
 2. Frontend on Vercel: set `VITE_API_URL` if needed. Vite build outputs to `dist/`.

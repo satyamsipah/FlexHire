@@ -1,10 +1,13 @@
 import axios from 'axios';
 
-// withCredentials:true is required so the browser sends the httpOnly cookie on every request.
-// The Vite proxy (vite.config.js) forwards /api/* to http://localhost:5001.
+// In production (Vercel) VITE_API_URL = https://flexhire-backend.onrender.com
+// In development it falls back to the local backend — Vite proxy still works for /api
+// but we point directly so Socket.io can also use the same base URL.
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 const api = axios.create({
-  baseURL:         '',
-  withCredentials: true,
+  baseURL:         API_URL,
+  withCredentials: true,   // send httpOnly cookie on every request
 });
 
 export default api;

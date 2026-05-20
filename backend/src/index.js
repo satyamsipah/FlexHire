@@ -18,11 +18,12 @@ import reviewRoutes from './routes/reviews.js';
 
 const app = express();
 const httpServer = createServer(app);
-const PORT       = process.env.PORT       || 5001;
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const PORT           = process.env.PORT       || 5001;
+// FRONTEND_URL is set in Render/production; CLIENT_URL is the legacy dev alias
+const ALLOWED_ORIGIN = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
 
 export const io = new Server(httpServer, {
-  cors: { origin: CLIENT_URL, credentials: true },
+  cors: { origin: ALLOWED_ORIGIN, credentials: true },
 });
 
 // Wire Redis adapter for horizontal scalability.
@@ -36,6 +37,9 @@ if (redisClients) {
 // Mount authenticated /chat namespace
 initChatSocket(io);
 
+// ─── Health check (used by Render to confirm successful deployment) ──────────
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
 // ─── Webhook BEFORE express.json() ───────────────────────────────────────────
 // Razorpay HMAC signature verification needs the raw request body buffer.
 // express.json() destroys it — so the webhook route uses express.raw() internally
@@ -43,7 +47,7 @@ initChatSocket(io);
 app.use('/api/webhooks', webhookRoutes);
 
 // ─── All other middleware ─────────────────────────────────────────────────────
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 

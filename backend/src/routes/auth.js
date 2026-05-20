@@ -7,12 +7,15 @@ import { ROLES } from '../constants/roles.js';
 
 const router = Router();
 
-// httpOnly prevents JS from reading the cookie (XSS protection).
-// sameSite:strict prevents the cookie from being sent on cross-site requests (CSRF protection).
+// In production (Render backend ↔ Vercel frontend = cross-site), the cookie
+// must be secure:true + sameSite:'none' so the browser sends it cross-origin.
+// In development (same localhost) lax is fine and avoids needing HTTPS.
+const IS_PROD = process.env.NODE_ENV === 'production';
 const COOKIE_OPTS = {
   httpOnly: true,
-  sameSite: 'strict',
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
+  secure:   IS_PROD,
+  sameSite: IS_PROD ? 'none' : 'lax',
+  maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
 // Role is embedded in the token so requireAuth never needs a DB lookup.

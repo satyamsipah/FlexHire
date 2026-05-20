@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
+import { API_URL } from '../lib/api.js';
 
 const MILESTONE_EVENTS = [
   'milestone:funded',
@@ -12,8 +13,6 @@ const MILESTONE_EVENTS = [
   'milestone:cancelled',
 ];
 
-// Connects to the /chat Socket.io namespace for a given projectId.
-// Auth via httpOnly cookie — the server verifies JWT on the handshake.
 export function useProjectSocket({ projectId, onMessage, onTyping, onMilestoneEvent, onPresence }) {
   const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
@@ -21,7 +20,9 @@ export function useProjectSocket({ projectId, onMessage, onTyping, onMilestoneEv
   useEffect(() => {
     if (!projectId) return;
 
-    const socket = io('/chat', { withCredentials: true });
+    // Connect to the /chat namespace on the backend — full URL required because
+    // the Socket.io server is on a different origin (Render) from the frontend (Vercel).
+    const socket = io(`${API_URL}/chat`, { withCredentials: true });
     socketRef.current = socket;
 
     socket.on('connect', () => {
