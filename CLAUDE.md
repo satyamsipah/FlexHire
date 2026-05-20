@@ -56,9 +56,9 @@ timestamps: true
 title, description: String
 amount: Number
 state: 'CREATED' | 'FUNDED' | 'IN_PROGRESS' | 'SUBMITTED' |
-       'APPROVED' | 'DISPUTED' | 'REFUNDED' | 'CANCELLED'
-       ← Add 'AUTO_REFUNDED' in Week 6 (Razorpay webhook terminal state)
+       'APPROVED' | 'DISPUTED' | 'REFUNDED' | 'AUTO_REFUNDED' | 'CANCELLED'
 razorpayOrderId, razorpayPaymentId, razorpayPayoutId: String (null)
+submissionNote: String (null)
 submittedAt, approvedAt, refundedAt: Date (null)
 ```
 
@@ -109,7 +109,9 @@ FlexHire/
 │       ├── constants/roles.js     ← ROLES, PROJECT_STATES, MILESTONE_STATES
 │       ├── middleware/requireAuth.js, requireRole.js
 │       ├── models/User.js, Project.js, Message.js, Dispute.js, AuditLog.js
-│       └── routes/auth.js, projects.js
+│       ├── routes/auth.js, projects.js, milestones.js, disputes.js, webhooks.js
+│       └── services/escrow/MilestoneStateMachine.js
+│                payments/razorpay.js
 └── frontend/
     ├── vite.config.js     (Tailwind v4 plugin + /api proxy → :5001)
     └── src/
@@ -126,26 +128,26 @@ FlexHire/
 | Week | Status | What shipped |
 |------|--------|-------------|
 | 5 | ✅ Done | Backend scaffold, all 6 schemas, JWT auth with RBAC, project routes, React frontend with role-aware routing |
-| 6 | ⬜ Next | MilestoneStateMachine, Razorpay escrow (create order → fund → payout), webhook, `PATCH /api/projects/:id/milestones/:mId/transition` |
-| 7 | ⬜ | Socket.io chat, Cloudinary uploads, Nodemailer, Upstash Redis |
+| 6 | ✅ Done | MilestoneStateMachine (9 transitions, MongoDB transactions, AuditLog), Razorpay Orders + HMAC webhook, mocked Payouts, dispute resolution, Fund/Approve/Dispute/Start/Submit buttons in frontend |
+| 7 | ⬜ Next | Socket.io chat with project-room auth, Cloudinary file uploads, Nodemailer notifications, Upstash Redis as Socket.io adapter |
 | 8 | ⬜ | Deployment (Render + Vercel), end-to-end testing |
 
 ---
 
-## Week 6 Entry Point
+## Week 7 Entry Point
 
-**Start here**: implement `EscrowStateMachine` in
-`backend/src/services/escrow/EscrowStateMachine.js`.
+**Start here**: implement Socket.io chat in `backend/src/socket/`.
 
-The state machine has 8 states and 12 transitions (see spec). Integration points:
-1. `POST /api/projects/:id/milestones/:mId/fund` — create Razorpay order, transition CREATED→FUNDED
-2. `POST /api/projects/:id/milestones/:mId/submit` — freelancer submits, FUNDED/IN_PROGRESS→SUBMITTED
-3. `POST /api/projects/:id/milestones/:mId/approve` — client approves, triggers Razorpay payout, SUBMITTED→APPROVED
-4. `POST /api/webhooks/razorpay` — handle `payment.captured` and `order.paid` events
-5. Remember: webhook route must be registered **before** `express.json()` in index.js
-
-Also needed: Razorpay Fund Account API setup for freelancer payouts (needs razorpayContactId +
-razorpayFundAccountId on the User model — fields already exist, just unpopulated).
+1. Install `socket.io` (backend) and `socket.io-client` (frontend) — already in package.json.
+2. Auth: read the `token` httpOnly cookie in the `io.use()` middleware via
+   `socket.handshake.headers.cookie` + the `cookie` package. Verify the JWT and attach
+   `socket.userId` + `socket.userRole`.
+3. Room pattern: `socket.join(`project:${projectId}`)` — verify the user is the client or
+   freelancer of that project before joining.
+4. Events: `chat:send` (client→server) → persist to `Message` collection → emit `chat:message`
+   (server→room).
+5. Upstash Redis adapter: `@socket.io/redis-adapter` with `@upstash/redis` (REST adapter).
+   Env vars `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` are already in `.env`.
 
 ---
 
@@ -177,8 +179,11 @@ razorpayFundAccountId on the User model — fields already exist, just unpopulat
    `{ $or: [{ state: 'POSTED' }, { freelancerId: req.userId }] }`
    so freelancers can navigate back to their in-progress projects.
 
-8. **`MILESTONE_STATES` needs `'AUTO_REFUNDED'`** — add it at the start of Week 6. It is the
-   terminal state written by the Razorpay webhook when a funded order expires.
+8. **Razorpay Payouts are mocked** — `mockPayout()` in
+   `backend/src/services/payments/razorpay.js` increments `freelancer.walletBalance` and
+   returns a fake `payout_mock_<timestamp>` ID instead of calling the real Payouts API.
+   Replace with `razorpay.payouts.create()` in Week 8 (requires Razorpay X account +
+   freelancer `razorpayFundAccountId`).
 
 ---
 
