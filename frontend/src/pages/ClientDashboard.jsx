@@ -377,13 +377,18 @@ export default function ClientDashboard() {
                             <div className="flex flex-wrap items-center gap-2">
                               {m.state === 'CREATED' && (
                                 <>
-                                  <button
-                                    onClick={() => handleFund(m._id)}
-                                    disabled={acting === m._id || user?.isGuest}
-                                    title={user?.isGuest ? 'Disabled in demo mode — no real payments' : undefined}
-                                    className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    {acting === m._id ? '…' : 'Fund'}
-                                  </button>
+                                  {/* title lives on the wrapper span — a disabled
+                                      button doesn't fire hover events on its own */}
+                                  <span
+                                    className="inline-block"
+                                    title={user?.isGuest ? 'Disabled in demo mode — no real payments' : undefined}>
+                                    <button
+                                      onClick={() => handleFund(m._id)}
+                                      disabled={acting === m._id || user?.isGuest}
+                                      className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                      {acting === m._id ? '…' : 'Fund'}
+                                    </button>
+                                  </span>
                                   <button
                                     onClick={() => setModal({ type: 'cancel', milestoneId: m._id })}
                                     disabled={acting === m._id}

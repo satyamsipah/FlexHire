@@ -55,7 +55,7 @@ router.post('/signup', async (req, res) => {
   const user = await User.create({ name, email, password: hashed, role });
 
   res.cookie('token', signToken(user._id, user.role), COOKIE_OPTS);
-  res.status(201).json({ message: 'ok', user: { name: user.name, email: user.email, role: user.role } });
+  res.status(201).json({ message: 'ok', user: { name: user.name, email: user.email, role: user.role, isGuest: !!user.isGuest } });
 });
 
 // POST /api/auth/login
@@ -71,7 +71,7 @@ router.post('/login', async (req, res) => {
   if (!match) return res.status(401).json({ error: 'Invalid credentials' });
 
   res.cookie('token', signToken(user._id, user.role, user.isGuest), COOKIE_OPTS);
-  res.json({ message: 'ok', user: { name: user.name, email: user.email, role: user.role } });
+  res.json({ message: 'ok', user: { name: user.name, email: user.email, role: user.role, isGuest: !!user.isGuest } });
 });
 
 // POST /api/auth/guest — one-click demo login (no password).

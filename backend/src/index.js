@@ -17,6 +17,10 @@ import uploadRoutes from './routes/uploads.js';
 import reviewRoutes from './routes/reviews.js';
 
 const app = express();
+// Trust the first proxy hop (Render/Vercel) so req.ip — and therefore
+// express-rate-limit's per-client keying — sees the real client address,
+// not the proxy's. '1' (not `true`) keeps it from being permissively trusting.
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 const PORT           = process.env.PORT       || 5001;
 // FRONTEND_URL is set in Render/production; CLIENT_URL is the legacy dev alias
