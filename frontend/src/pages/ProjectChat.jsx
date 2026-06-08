@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api.js';
 import useAuthStore from '../store/authStore.js';
 import { useProjectSocket } from '../hooks/useProjectSocket.js';
+import GuestBanner from '../components/GuestBanner.jsx';
 
 const ROLE_HOME = { client: '/client', freelancer: '/freelancer', admin: '/admin' };
 
@@ -169,6 +170,8 @@ export default function ProjectChat() {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen flex-col bg-gray-50">
+      <GuestBanner />
+
       {/* Header */}
       <header className="flex items-center justify-between border-b bg-white px-4 py-3 shadow-sm">
         <div className="flex items-center gap-3">
