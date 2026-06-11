@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import AuditLog from '../models/AuditLog.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { blockGuests } from '../middleware/blockGuests.js';
 import { ROLES } from '../constants/roles.js';
 import { MilestoneStateMachine } from '../services/escrow/MilestoneStateMachine.js';
 import { createOrder } from '../services/payments/razorpay.js';
@@ -44,7 +45,7 @@ router.post('/project/:projectId', requireAuth, requireRole(ROLES.CLIENT), async
 
 // ─── Fund: create Razorpay order (state stays CREATED until webhook fires) ───
 
-router.post('/:milestoneId/fund', requireAuth, requireRole(ROLES.CLIENT), async (req, res) => {
+router.post('/:milestoneId/fund', requireAuth, requireRole(ROLES.CLIENT), blockGuests, async (req, res) => {
   const project = await findProjectByMilestone(req.params.milestoneId);
   if (!project) return res.status(404).json({ error: 'Milestone not found' });
 

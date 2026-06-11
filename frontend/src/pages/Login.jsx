@@ -11,6 +11,7 @@ export default function Login() {
   const [form,  setForm]  = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [guestRole, setGuestRole] = useState(null); // role currently logging in as guest
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -24,6 +25,21 @@ export default function Login() {
       setError(err.response?.data?.error ?? 'Login failed');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // One-click demo login — no registration. Stores the token exactly like
+  // normal login (same httpOnly cookie + setUser), then drops into the dashboard.
+  async function handleGuest(role) {
+    setError('');
+    setGuestRole(role);
+    try {
+      const { data } = await api.post('/api/auth/guest', { role });
+      setUser(data.user);
+      navigate(ROLE_HOME[data.user.role] ?? '/login', { replace: true });
+    } catch (err) {
+      setError(err.response?.data?.error ?? 'Could not start demo session');
+      setGuestRole(null);
     }
   }
 
@@ -63,7 +79,41 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-gray-600">
+        {/* ── Explore as Guest (no registration) ── */}
+        <div className="mt-6">
+          <div className="relative flex items-center">
+            <div className="flex-grow border-t border-gray-200" />
+            <span className="mx-3 text-xs font-medium uppercase tracking-wide text-gray-400">
+              or explore as guest
+            </span>
+            <div className="flex-grow border-t border-gray-200" />
+          </div>
+
+          <p className="mt-3 text-center text-xs text-gray-500">
+            No account needed — jump straight into a live demo.
+          </p>
+
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => handleGuest('client')}
+              disabled={guestRole !== null}
+              className="rounded-lg border border-indigo-200 bg-indigo-50 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+            >
+              {guestRole === 'client' ? 'Loading…' : 'View as Client'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGuest('freelancer')}
+              disabled={guestRole !== null}
+              className="rounded-lg border border-emerald-200 bg-emerald-50 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+            >
+              {guestRole === 'freelancer' ? 'Loading…' : 'View as Freelancer'}
+            </button>
+          </div>
+        </div>
+
+        <p className="mt-6 text-center text-sm text-gray-600">
           No account?{' '}
           <Link to="/signup" className="font-medium text-indigo-600 hover:underline">
             Sign up

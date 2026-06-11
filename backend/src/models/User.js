@@ -13,6 +13,10 @@ const userSchema = new mongoose.Schema(
     // Escrow wallet — credited when a client funds a milestone, debited on payout
     walletBalance: { type: Number, default: 0 },
 
+    // Demo accounts seeded for one-click "Explore as Guest" (scripts/seedGuests.js).
+    // Guests are blocked from real-money / destructive actions — see middleware/blockGuests.js
+    isGuest: { type: Boolean, default: false },
+
     // Razorpay Fund Account API — populated in Week 6 when a freelancer first gets paid
     razorpayContactId:     { type: String, default: null },
     razorpayFundAccountId: { type: String, default: null },

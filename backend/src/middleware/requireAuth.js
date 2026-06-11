@@ -12,6 +12,7 @@ export function requireAuth(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     req.userId   = payload.userId;
     req.userRole = payload.role;
+    req.isGuest  = payload.isGuest === true; // demo accounts — see middleware/blockGuests.js
     next();
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });

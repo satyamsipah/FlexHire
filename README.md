@@ -6,6 +6,21 @@ A full-stack freelancer marketplace with milestone-based escrow payments, real-t
 
 ---
 
+## 👀 Guest login (for recruiters)
+
+No signup required. On the login page, click **Explore as Guest** and pick
+**View as Client** or **View as Freelancer** to jump straight into a populated demo —
+open job posts, a mid-escrow project, and a chat thread are already seeded.
+
+Demo accounts are blocked from real-money / destructive actions (e.g. funding a
+milestone via Razorpay); everything else — posting projects, accepting work,
+approving milestones, chat — is fully explorable.
+
+> One-time setup: after configuring the backend, run `npm run seed:guests` (see
+> [Local setup](#local-setup)) to create the demo accounts and data.
+
+---
+
 ## What it does
 
 Clients post projects with one or more milestones. Each milestone has a fixed price and travels through an 8-state escrow lifecycle: the client funds via Razorpay, the freelancer completes and submits work, the client approves and the funds are released — or a dispute is raised and an admin resolves it. All milestone events are pushed live to both parties via Socket.io.
@@ -110,6 +125,17 @@ cp .env.example .env
 #          REDIS_URL (optional — Redis adapter is skipped if not set)
 npm install
 npm run dev        # port 5001
+```
+
+### Seed the guest demo accounts
+
+Creates the two demo users (`demo-client@flexhire.demo`, `demo-freelancer@flexhire.demo`)
+plus realistic demo data that powers the **Explore as Guest** button. Idempotent — safe
+to re-run any time to reset the demo to a clean state:
+
+```bash
+cd backend
+npm run seed:guests
 ```
 
 ### Frontend

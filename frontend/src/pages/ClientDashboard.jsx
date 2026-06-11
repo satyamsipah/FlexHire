@@ -5,6 +5,7 @@ import api from '../lib/api.js';
 import useAuthStore from '../store/authStore.js';
 import { formatINR, timeAgo } from '../lib/format.js';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import GuestBanner from '../components/GuestBanner.jsx';
 
 // ── Badge colours ─────────────────────────────────────────────────────────────
 const PROJECT_BADGE = {
@@ -236,6 +237,8 @@ export default function ClientDashboard() {
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
+      <GuestBanner />
+
       {/* Header */}
       <header className="flex flex-wrap items-center justify-between gap-3 border-b bg-white px-4 sm:px-6 py-4">
         <h1 className="text-xl font-bold text-indigo-700">FlexHire</h1>
@@ -374,12 +377,18 @@ export default function ClientDashboard() {
                             <div className="flex flex-wrap items-center gap-2">
                               {m.state === 'CREATED' && (
                                 <>
-                                  <button
-                                    onClick={() => handleFund(m._id)}
-                                    disabled={acting === m._id}
-                                    className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-                                    {acting === m._id ? '…' : 'Fund'}
-                                  </button>
+                                  {/* title lives on the wrapper span — a disabled
+                                      button doesn't fire hover events on its own */}
+                                  <span
+                                    className="inline-block"
+                                    title={user?.isGuest ? 'Disabled in demo mode — no real payments' : undefined}>
+                                    <button
+                                      onClick={() => handleFund(m._id)}
+                                      disabled={acting === m._id || user?.isGuest}
+                                      className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                      {acting === m._id ? '…' : 'Fund'}
+                                    </button>
+                                  </span>
                                   <button
                                     onClick={() => setModal({ type: 'cancel', milestoneId: m._id })}
                                     disabled={acting === m._id}

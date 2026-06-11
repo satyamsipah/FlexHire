@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../lib/api.js';
 import useAuthStore from '../store/authStore.js';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import GuestBanner from '../components/GuestBanner.jsx';
 import { formatINR, timeAgo } from '../lib/format.js';
 
 const M_STATE_STYLES = {
@@ -175,6 +176,8 @@ export default function FreelancerDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <GuestBanner />
+
       <header className="flex flex-wrap items-center justify-between gap-3 border-b bg-white px-6 py-4">
         <h1 className="text-xl font-bold text-indigo-700">FlexHire</h1>
         <div className="flex items-center gap-4">
