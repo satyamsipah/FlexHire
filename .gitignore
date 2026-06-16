@@ -1,0 +1,9 @@
+# Claude Code session data
+.claude/
+
+# OS
+.DS_Store
+
+# Env files (also covered by sub-project .gitignore files)
+.env
+.env.*
